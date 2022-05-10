@@ -116,7 +116,7 @@ def originEdge(src):
     cv2.imshow("EDGE_grayscale", gray) #<--여기서 픽셀 깨짐이 많이 발생
     '''
     #canny edge 이용
-    #dst = cv2.Canny(src, 80,200)
+    dst = cv2.Canny(src, 80,200)
     
     #가우시안 - laplacian 시용
     # mask1 = np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]])
@@ -167,26 +167,28 @@ def originEdge(src):
     # alpha = 1.0
     # dst = np.clip((1+alpha)*dst - 254*alpha, 0, 255).astype(np.uint8)
     cv2.imshow("before binarization", dst)
-    ret, dst = cv2.threshold(dst,230, 255, cv2.THRESH_BINARY)
+    ret, dst = cv2.threshold(dst,254, 255, cv2.THRESH_BINARY) #254, 200 등 뭐 넣는지에 따라 boundary 결과가 달라짐
     cv2.imshow("after binarization", dst)
     # dst = cv2.medianBlur(dst, 5)
     # dst = cv2.blur(dst, (3,3))
     # ret, dst = cv2.threshold(dst,181, 255, cv2.THRESH_BINARY)
-    dst = cv2.fastNlMeansDenoising(dst, 10, 7, 3)
+    # dst = cv2.fastNlMeansDenoising(dst, 150, 1, 11)
+    cv2.denoise_TVL1(dst, dst, 10.0, 5)
+    
     cv2.imshow("after denoising", dst)
     #생각해보니까 그냥 이진화를 하면 되었던 것이었음
     return dst
 
 
-imgpath = 'base13_mondrian_MST.jpg'
+imgpath = 'base18_style4_MST.jpg'
 image = cv2.imread('images/dfr_afterstyle/'+imgpath)
 imageorigin = cv2.imread('images/content/'+imgpath.split('_')[0]+'.jpg')
 
 print('styled image: ','images/dfr_afterstyle/'+imgpath)
 print('origin image: ','images/content/'+imgpath.split('_')[0]+'.jpg')
 # width 을 600 으로 할때
-ratio = 800.0 / image.shape[1]
-dim = (800, int(image.shape[0] * ratio))
+ratio = 600.0 / image.shape[1]
+dim = (600, int(image.shape[0] * ratio))
 
 imageorigin = cv2.resize(imageorigin, dim)
 image = cv2.resize(image, dim)
