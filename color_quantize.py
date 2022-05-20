@@ -2,6 +2,7 @@ from xml.sax.handler import DTDHandler
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 def quantimage(image,k):
     i = np.float32(image).reshape(-1,3)
     condition = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,20,1.0)
@@ -167,7 +168,7 @@ def originEdge(src):
     # alpha = 1.0
     # dst = np.clip((1+alpha)*dst - 254*alpha, 0, 255).astype(np.uint8)
     cv2.imshow("before binarization", dst)
-    ret, dst = cv2.threshold(dst,254, 255, cv2.THRESH_BINARY) #254, 200 등 뭐 넣는지에 따라 boundary 결과가 달라짐
+    ret, dst = cv2.threshold(179,200, 255, cv2.THRESH_BINARY) #254, 200 등 뭐 넣는지에 따라 boundary 결과가 달라짐
     cv2.imshow("after binarization", dst)
     # dst = cv2.medianBlur(dst, 5)
     # dst = cv2.blur(dst, (3,3))
@@ -180,43 +181,137 @@ def originEdge(src):
     return dst
 
 
-imgpath = 'base18_style4_MST.jpg'
-image = cv2.imread('images/dfr_afterstyle/'+imgpath)
-imageorigin = cv2.imread('images/content/'+imgpath.split('_')[0]+'.jpg')
+def main_pipo():
+    imgpath = 'base18_style4_MST.jpg'
+    image = cv2.imread('images/dfr_afterstyle/'+imgpath)
+    imageorigin = cv2.imread('images/content/'+imgpath.split('_')[0]+'.jpg')
 
-print('styled image: ','images/dfr_afterstyle/'+imgpath)
-print('origin image: ','images/content/'+imgpath.split('_')[0]+'.jpg')
-# width 을 600 으로 할때
-ratio = 600.0 / image.shape[1]
-dim = (600, int(image.shape[0] * ratio))
+    print('styled image: ','images/dfr_afterstyle/'+imgpath)
+    print('origin image: ','images/content/'+imgpath.split('_')[0]+'.jpg')
+    # width 을 600 으로 할때
+    ratio = 600.0 / image.shape[1]
+    dim = (600, int(image.shape[0] * ratio))
 
-imageorigin = cv2.resize(imageorigin, dim)
-image = cv2.resize(image, dim)
-# image = cv2.bilateralFilter(image,10,75,75)
+    imageorigin = cv2.resize(imageorigin, dim)
+    image = cv2.resize(image, dim)
+    # image = cv2.bilateralFilter(image,10,75,75)
 
-cv2.imshow("original", image)
+    cv2.imshow("original", image)
 
 
-image3 = quantimage(image,8)
-# image3 = cv2.bilateralFilter(image3,10,50,50) #필터 적용 했을 때랑 안했을 때랑 결과도 차이가 큼, 지금은 안하는게 나음
-cv2.imshow(imgpath.split('_')[0]+'col35', image3)
+    image3 = quantimage(image,8)
+    # image3 = cv2.bilateralFilter(image3,10,50,50) #필터 적용 했을 때랑 안했을 때랑 결과도 차이가 큼, 지금은 안하는게 나음
+    cv2.imshow(imgpath.split('_')[0]+'col35', image3)
 
-dst, whiteboard = findContourOf2(image3)
+    dst, whiteboard = findContourOf2(image3)
 
-edge = originEdge(image3)
-# cv2.imshow('edge', edge)
+    edge = originEdge(image3)
+    # cv2.imshow('edge', edge)
 
-print('img size: ', whiteboard.shape, edge.shape)
-result = cv2.bitwise_and(whiteboard, edge)
-# cv2.imshow('result', result)
+    print('img size: ', whiteboard.shape, edge.shape)
+    result = cv2.bitwise_and(whiteboard, edge)
+    # cv2.imshow('result', result)
 
-'''
-kernel = np.ones((3,3), np.uint8)
-result = cv2.morphologyEx(result, cv2.MORPH_OPEN, kernel, iterations=2)
-result = cv2.dilate(result, kernel, iterations=3)
-# cv2.imshow('result after dilation', result)
-'''
+    '''
+    kernel = np.ones((3,3), np.uint8)
+    result = cv2.morphologyEx(result, cv2.MORPH_OPEN, kernel, iterations=2)
+    result = cv2.dilate(result, kernel, iterations=3)
+    # cv2.imshow('result after dilation', result)
+    '''
 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
+#특정 pixel 값만 검출, uniue pixel list의 idx 번째 픽셀
+def pixelonly(src, idx):
+    src_hsv= cv2.cvtColor(src, cv2.COLOR_BGR2HSV) #색상공간 변환: 색상검출이 RGB보다 HSV에서 성능이 좋음
+    uniques_hsv = np.unique(src_hsv.reshape(-1, src_hsv.shape[-1]), axis=0) #unique pixel hsv 추출
+
+    hsv_col = cv2.inRange(src_hsv, uniques_hsv[idx], uniques_hsv[idx])    
+    dst = cv2.bitwise_and(src_hsv, src_hsv, mask = hsv_col)
+    dst = cv2.cvtColor(dst, cv2.COLOR_HSV2BGR) #imshow는 BGR만 정상적으로 출력하므로 다시 바꿔줌
+    # cv2.imshow('dst_%d'%(idx), dst)
+
+    return dst
+
+def getEdgeLine(src):
+    dst = src.copy()
+    # cv2.imshow("initial dst", dst)
+    gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+    gray = cv2.bilateralFilter(gray,5,75,75)
+    
+    dst = cv2.Canny(src, 1,200)
+    print("dst.shape:",dst.shape)
+    
+   
+    ret, dst = cv2.threshold(dst, 254, 255, cv2.THRESH_BINARY) #254, 200 등 뭐 넣는지에 따라 boundary 결과가 달라짐
+    print("dst.shape:",dst.shape)
+    #dst=cv2.bitwise_not(dst) 폰으로주석처리잠깐해봄
+    dst = cv2.cvtColor(dst, cv2.COLOR_GRAY2BGR)
+    cv2.imshow("edge dst", dst)
+
+    return dst
+
+def folder_create(img, col_num):
+    folder_name = '../../node/test_web/public/images/outputs/'+img+'_col'+str(col_num)
+    try:
+        if not os.path.exists(folder_name):
+            os.makedirs(folder_name)
+        print('succeed in makeing ',folder_name)
+    except OSError:
+        print ('Error: Creating directory. ' +  img)
+    return folder_name
+
+
+def main():
+    imgname = 'base10_mondrian_MST.jpg'
+    imgpath = 'images/dfr_afterstyle/'
+    image = cv2.imread(imgpath+imgname) #스타일 적용 이미지
+    imageorigin = cv2.imread('images/content/'+imgname.split('_')[0]+'.jpg') #스타일 적용 전 이미지
+
+    print('styled image: ',imgpath+imgname)
+    print('origin image: ','images/content/'+imgname.split('_')[0]+'.jpg')
+    # width 을 600 으로 할때
+    ratio = 800.0 / image.shape[1]
+    dim = (800, int(image.shape[0] * ratio))
+
+    imageorigin = cv2.resize(imageorigin, dim)
+    image = cv2.resize(image, dim)
+
+    
+    #image_quant: 컬러 양자화
+    #whiteboard: 양자화 된 그림에서 흰색 배경에 윤곽선만 추출한 이미지
+    col_num = 16
+    image_quant = quantimage(image,col_num)
+    cv2.imshow("styled", image)
+    cv2.imshow("styled quantimage", image_quant)
+    
+    print(image_quant.shape)
+    uniques = np.unique(image_quant.reshape(-1, image_quant.shape[-1]), axis=0) #unique pixel rgb 추출
+    print(uniques)
+
+    whiteboard = getEdgeLine(image_quant)
+    # image_unique = pixelonly(image_quant, 2) #여기 숫자 바꿔서 컬러 값 바꿀 수 있음 -> for반복문으로 이동
+    # print('type of unique pixel',uniques[0], type(uniques[0]), tuple(uniques[0]))
+    
+    for i in range(col_num):
+        image_unique = pixelonly(image_quant, i)
+        #검출된 픽셀을 엣지 캔버스에 입히기
+        image_result = np.zeros(whiteboard.shape, np.uint8)
+        image_result = cv2.add(whiteboard, image_unique, image_result) #검정 배경 이미지 두개 합침
+        image_result = np.where(image_result==0, 255, image_result)
+        image_result = cv2.subtract(image_result, whiteboard)
+        folder = folder_create(imgname, col_num)
+        fileup_name = imgname.split('.')[0]+'_'+str(tuple(uniques[i][::-1]))+'.'+imgname.split('.')[1]
+        cv2.imwrite(folder+'/'+fileup_name, image_result)
+        print('succeed in writing image named: ',fileup_name)
+    # cv2.imshow("result", image_result)
+    # print(image_result.shape)
+    cv2.imwrite(folder+'/'+imgname.split('.')[0]+'_quant''.'+imgname.split('.')[1], image_quant)
+    cv2.imwrite(folder+'/'+imgname.split('.')[0]+'_whiteboard''.'+imgname.split('.')[1], cv2.bitwise_not(whiteboard))
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    
+
+if __name__=="__main__":
+    main()
